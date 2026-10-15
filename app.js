@@ -7,7 +7,7 @@
 
   /* ---------- Главы ---------- */
   const CHAPTERS = [
-    { id: "story",    e: "💬", title: "Как всё началось",      desc: "ВДНХ, наука и легендарное «неа пхахаха»",   color: "#2b5278", stamp: "ГЛАВВИНО", se: "🍷" },
+    { id: "story",    e: "💬", title: "Как всё началось",      desc: "ВДНХ, наука и наша первая переписка",   color: "#2b5278", stamp: "ГЛАВВИНО", se: "🍷" },
     { id: "pole",     e: "🏮", title: "Фонарный пилон",         desc: "Мини-игра на ловкость: покори фонарь",      color: "#c99a12", stamp: "ФОНАРЬ",   se: "🏮" },
     { id: "memory",   e: "🎞️", title: "Мемори и мультик",       desc: "Найди пары и оживи 15 кадров",              color: "#c46a9c", stamp: "КАДР",     se: "🎞️" },
     { id: "dossier",  e: "🕵️‍♀️", title: "Досье: Дари",           desc: "Сложный тест — и только потом откроется досье", color: "#8e2a5a", stamp: "ДОСЬЕ",    se: "👑" },
@@ -905,7 +905,7 @@
      ====================================================================== */
   function renderAcademy(ch) {
     const s = mount(`
-      ${chapterHead(ch, "Ускоренный курс болгарской жизни. Для штампа пройди тренажёр «Да или нет?» и найди всех ложных друзей.")}
+      ${chapterHead(ch, "Ускоренный курс болгарской жизни. Для штампа пройди обе части «Да или нет?» и найди всех ложных друзей.")}
       <div class="tabs" id="atabs">
         <button class="tab on" data-t="head">🙂 Да или нет? <span id="tk1"></span></button>
         <button class="tab" data-t="ff">🤝 Ложные друзья <span id="tk2"></span></button>
@@ -915,11 +915,11 @@
       <div id="apane"></div>
       <div id="aEnd"></div>`);
     const apane = $("#apane", s);
-    const prog = { head: false, ff: false };
+    const prog = { mehana: false, blitz: false, ff: false };
     function marks() {
-      $("#tk1", s).textContent = prog.head || state.done[ch.id] ? "✓" : "";
+      $("#tk1", s).textContent = (prog.mehana && prog.blitz) || state.done[ch.id] ? "✓" : "";
       $("#tk2", s).textContent = prog.ff || state.done[ch.id] ? "✓" : "";
-      if (prog.head && prog.ff) giveStamp(ch.id);
+      if (prog.mehana && prog.blitz && prog.ff) giveStamp(ch.id);
       if (state.done[ch.id] && !$("#aEnd .done-banner", s))
         $("#aEnd", s).innerHTML = doneBanner("Диплом с отличием! 🎓", "Теперь ты точно не перепутаешь «да» и «нет»… наверное.", `<button class="btn ghost" data-go="ch/suitcase">Собирать чемодан 🧳</button>`);
     }
@@ -930,41 +930,121 @@
     }
     $$("#atabs .tab", s).forEach((b) => b.onclick = () => tab(b.dataset.t));
 
+    function headHTML(variant) {
+      return `<div class="head ${variant}"><div class="head-in"><div class="hair"></div><div class="face-c"></div><div class="eye l"></div><div class="eye r"></div><div class="cheek l"></div><div class="cheek r"></div><div class="stache"></div><div class="mouth"></div></div></div>`;
+    }
+    function gesture(head, move) { head.classList.remove("nod", "shake"); void head.offsetWidth; head.classList.add(move); }
+
     function headPane() {
-      let i = 0, score = 0;
-      apane.innerHTML = `<div class="card"><div class="head-trainer">
-        <div class="head" id="head"><div class="head-in"><div class="hair"></div><div class="face-c"></div><div class="eye l"></div><div class="eye r"></div><div class="cheek l"></div><div class="cheek r"></div><div class="mouth"></div></div></div>
-        <div id="htBox"></div></div></div>`;
-      const head = $("#head", apane), box = $("#htBox", apane);
-      function animate(move) { head.classList.remove("nod", "shake"); void head.offsetWidth; head.classList.add(move); }
+      apane.innerHTML = `<div class="card yn-intro">
+        <h3>Болгарское «да» — это наоборот</h3>
+        <p>Кивок — «нет», покачивание головой из стороны в сторону — «да». Звучит просто, пока не попробуешь.</p>
+        <div class="yn-parts">
+          <button class="yn-part" id="p1"><span>🍽️</span><b>Часть 1. Ужин в механе</b><small>Пойми официанта — от этого зависит, удастся ли вечер</small></button>
+          <button class="yn-part" id="p2"><span>⚡</span><b>Часть 2. Блиц</b><small>Отвечай головой как болгарка, на каждый вопрос 4 секунды</small></button>
+        </div></div>`;
+      $("#p1", apane).onclick = mehana;
+      $("#p2", apane).onclick = blitz;
+    }
+
+    function mehana() {
+      let i = 0, mood = 50;
+      apane.innerHTML = `<div class="card yn">
+        <div class="yn-stage">
+          <div class="yn-char">${headHTML("waiter")}<div class="tag">Бай Митко, официант</div></div>
+          <div class="yn-main">
+            <div class="mood"><span>Вечер удался на</span><div class="mood-bar"><i id="moodBar"></i></div><b id="moodTxt">50%</b></div>
+            <div id="ynBox"></div>
+          </div>
+        </div></div>`;
+      const head = $(".head", apane), box = $("#ynBox", apane);
+      function setMood() { $("#moodBar", apane).style.width = mood + "%"; $("#moodTxt", apane).textContent = mood + "%"; }
       function show() {
-        const q = HEAD_TRAINER[i];
-        box.innerHTML = `<div class="qn" style="font-size:13px;font-weight:800;color:var(--ink-soft)">СИТУАЦИЯ ${i + 1} ИЗ ${HEAD_TRAINER.length}</div>
-          <h3 style="font-size:19px;margin:6px 0 14px">${esc(q.q)}</h3>
-          <p style="margin:0 0 12px;color:var(--ink-soft)">Что тебе ответили?</p>
-          <div class="row" style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn green" data-a="yes">Это «да»</button>
-            <button class="btn red" data-a="no">Это «нет»</button>
-            <button class="btn small outline-ink" id="again">↻ Ещё раз жест</button>
-          </div><div id="htNote"></div>`;
-        animate(q.move);
-        $("#again", box).onclick = () => animate(q.move);
+        const sc = MEHANA[i];
+        box.innerHTML = `<div class="qn" style="font-size:12px;font-weight:800;color:var(--ink-soft);letter-spacing:.08em">ВОПРОС ${i + 1} ИЗ ${MEHANA.length}</div>
+          <div class="bubble me">Ты: «${esc(sc.ask)}»</div>
+          <div class="bubble them" id="them">Бай Митко молча ${sc.move === "nod" ? "кивает" : "качает головой"}…</div>
+          <div class="yn-btns">
+            <button class="btn green" data-a="yes">Поняла: «да»</button>
+            <button class="btn red" data-a="no">Поняла: «нет»</button>
+            <button class="btn small outline-ink" id="again">↻ Ещё раз</button>
+          </div><div id="ynRes"></div>`;
+        setTimeout(() => gesture(head, sc.move), 250);
+        $("#again", box).onclick = () => gesture(head, sc.move);
         $$("[data-a]", box).forEach((b) => b.onclick = () => {
-          const ok = b.dataset.a === q.ans; if (ok) score++;
+          const ok = b.dataset.a === sc.ans;
+          mood = Math.max(0, Math.min(100, mood + (ok ? 8 : -12))); setMood();
           sfx(ok ? "ok" : "bad");
-          $$("[data-a]", box).forEach((x) => (x.disabled = true));
-          $("#htNote", box).innerHTML = `<div class="note" style="margin-top:14px;padding:12px 14px;border-radius:12px;background:#fff7dc;border-left:4px solid var(--glow)">
-            ${ok ? "✅ Верно!" : "❌ Ловушка!"} ${q.move === "nod" ? "Кивок в Болгарии — это «нет»." : "Покачивание головой из стороны в сторону — это «да»."}</div>
-            <div style="margin-top:12px;text-align:right"><button class="btn green" id="hNext">${i < HEAD_TRAINER.length - 1 ? "Дальше →" : "Готово 🏁"}</button></div>`;
-          $("#hNext", box).onclick = () => {
-            i++;
-            if (i < HEAD_TRAINER.length) return show();
-            prog.head = true; marks();
-            box.innerHTML = `<h3>${score}/${HEAD_TRAINER.length} — ${score === HEAD_TRAINER.length ? 'ты уже почти болгарка! <span class="flag-i"></span>' : "мозг сопротивляется, это нормально 😄"}</h3>
-              <p>Лайфхак: в Болгарии лучше отвечать словами — «да» и «не».</p><button class="btn outline-ink" id="hRe">Ещё раз</button>`;
-            $("#hRe", box).onclick = headPane;
-          };
+          $(".yn-btns", box).remove();
+          $("#ynRes", box).innerHTML = `<div class="outcome ${ok ? "good" : "bad"}"><b>${ok ? "✅ Так и есть!" : "❌ Ой…"}</b> ${esc(ok ? sc.good : sc.bad)}</div>
+            <div style="text-align:right;margin-top:12px"><button class="btn green" id="ynNext">${i < MEHANA.length - 1 ? "Дальше →" : "Счёт, пожалуйста 🧾"}</button></div>`;
+          $("#ynNext", box).onclick = () => { i++; i < MEHANA.length ? show() : end(); };
         });
+      }
+      function end() {
+        const verdict = mood >= 90 ? "Идеальный вечер! Бай Митко записал тебя в постоянные гости 🥂" : mood >= 60 ? "Хороший вечер, пара неловкостей не в счёт 😄" : "Вечер получился… запоминающимся. Попробуй ещё раз!";
+        box.innerHTML = `<h3 style="margin-top:6px">Вечер удался на ${mood}%</h3><p>${verdict}</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="toBlitz">Часть 2: блиц ⚡</button><button class="btn small outline-ink" id="re">Ещё раз в механу</button></div>`;
+        $("#toBlitz", box).onclick = blitz;
+        $("#re", box).onclick = mehana;
+        prog.mehana = true; marks();
+      }
+      setMood(); show();
+    }
+
+    function blitz() {
+      const qs = shuffle(BLITZ);
+      let i = 0, score = 0, timer = null, t0 = 0, locked = false;
+      const LIMIT = 4000;
+      apane.innerHTML = `<div class="card yn">
+        <div class="yn-stage">
+          <div class="yn-char">${headHTML("dari")}<div class="tag">Это ты 😄</div></div>
+          <div class="yn-main">
+            <p style="margin-top:0;color:var(--ink-soft)">Отвечай честно, но по-болгарски: «да» — качай головой, «нет» — кивай.</p>
+            <div id="blBox"></div>
+          </div>
+        </div></div>`;
+      const head = $(".head", apane), box = $("#blBox", apane);
+      const stop = () => cancelAnimationFrame(timer);
+      onCleanup(stop);
+      function show() {
+        locked = false;
+        const q = qs[i];
+        box.innerHTML = `<div class="qn" style="font-size:12px;font-weight:800;color:var(--ink-soft);letter-spacing:.08em">ВОПРОС ${i + 1} ИЗ ${qs.length} · ВЕРНО: ${score}</div>
+          <h3 class="blitz-q">${esc(q.q)}</h3>
+          <div class="timebar"><i id="tb"></i></div>
+          <div class="yn-btns">
+            <button class="btn" data-m="nod">🙂↕️ Кивнуть</button>
+            <button class="btn" data-m="shake">🙂↔️ Покачать головой</button>
+          </div><div id="blRes"></div>`;
+        $$("[data-m]", box).forEach((b) => b.onclick = () => answer(b.dataset.m));
+        t0 = performance.now();
+        const tick = (now) => {
+          if (!box.isConnected) return stop();
+          const left = Math.max(0, 1 - (now - t0) / LIMIT);
+          const tb = $("#tb", box); if (tb) tb.style.width = left * 100 + "%";
+          if (left <= 0) return answer(null);
+          timer = requestAnimationFrame(tick);
+        };
+        timer = requestAnimationFrame(tick);
+      }
+      function answer(move) {
+        if (locked) return; locked = true; stop();
+        const q = qs[i], need = q.truth === "yes" ? "shake" : "nod", ok = move === need;
+        if (move) gesture(head, move);
+        if (ok) score++;
+        sfx(ok ? "ok" : "bad");
+        $$("[data-m]", box).forEach((x) => (x.disabled = true));
+        const truth = q.truth === "yes" ? "«да»" : "«нет»";
+        $("#blRes", box).innerHTML = `<div class="outcome ${ok ? "good" : "bad"}">${!move ? "⏰ Время вышло!" : ok ? "✅ Чистое болгарское" : "❌ Мимо! Нужно было"} ${truth} — это ${need === "shake" ? "покачать головой" : "кивнуть"}.</div>`;
+        setTimeout(() => { i++; i < qs.length ? show() : end(); }, 1300);
+      }
+      function end() {
+        box.innerHTML = `<h3 class="blitz-q">${score}/${qs.length}</h3><p>${score === qs.length ? 'Голова уже работает по-болгарски! <span class="flag-i"></span>' : score >= qs.length * .6 ? "Почти! Ещё пара дней в Софии — и привыкнешь." : "Мозг сопротивляется — это нормально 😄 Лайфхак: отвечай словами «да» и «не»."}</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small outline-ink" id="re">Ещё раз</button><button class="btn small outline-ink" id="toM">В механу 🍽️</button></div>`;
+        $("#re", box).onclick = blitz;
+        $("#toM", box).onclick = mehana;
+        prog.blitz = true; marks();
       }
       show();
     }
@@ -1140,6 +1220,7 @@
     if (!all && !renderFinale.force) {
       const left = CHAPTERS.filter((c) => !state.done[c.id]);
       const s = mount(`<div class="finale" style="text-align:center">
+        <div class="finale-back"><button class="back" data-go="hub">← К заданиям</button></div>
         <div style="font-size:64px">🔒</div>
         <h2>Секретный выход пока закрыт</h2>
         <p style="color:var(--muted-night)">Не хватает штампов: ${left.length}. Осталось пройти:</p>
@@ -1151,6 +1232,7 @@
     const picks = PLACES.filter((p) => p.pick);
     const wishes = PLACES.filter((p) => state.wish.includes(p.id) && !p.pick);
     const s = mount(`<div class="finale">
+      <div class="finale-back"><button class="back" data-go="hub">← К заданиям</button></div>
       <div class="final-hero">
         <div class="hand">${all ? "Паспорт заполнен!" : "Ладно, заходи 😄"}</div>
         <h1>Счастливого пути, ${GAME.heroName}! ✈️</h1>
@@ -1171,6 +1253,7 @@
         <button class="btn red" id="cheers">🥂 Наздраве!</button>
         <button class="btn ghost" id="toGallery">Ещё раз посмотреть мультик 🎞️</button>
         <button class="btn ghost" data-go="ch/map">Открыть карту 🗺️</button>
+        <button class="btn ghost" data-go="hub">← К заданиям</button>
       </div>
     </div>`);
     $("#cheers", s).onclick = () => { sfx("clink"); confetti(200); toast("Наздраве! За тебя и за Болгарию! 🥂"); };

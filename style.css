@@ -638,3 +638,51 @@ main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 80px; }
 .dossier-card dl { grid-template-columns: 1fr; gap: 0; }
 .dossier-card dt { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-top: 10px; }
 .dossier-card dd { font-weight: 600; }
+
+/* ====== Секретный выход: назад ====== */
+.finale-back { text-align: left; margin-bottom: 10px; }
+.back, .finale-back .back {
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.15);
+  border-radius: 999px; padding: 8px 14px; font-size: 14px;
+}
+
+/* ====== «Да или нет?»: механа и блиц ====== */
+.yn-intro h3 { font-size: 20px; }
+.yn-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.yn-part {
+  display: grid; gap: 4px; text-align: left; padding: 16px; border-radius: 16px; border: 2px solid var(--line); background: #fff; color: var(--ink);
+  transition: transform .15s, border-color .15s;
+}
+.yn-part:hover { transform: translateY(-3px); border-color: var(--glow); }
+.yn-part span { font-size: 34px; }
+.yn-part b { font-family: "Unbounded"; font-size: 14px; }
+.yn-part small { color: var(--ink-soft); }
+.yn-stage { display: grid; grid-template-columns: 210px 1fr; gap: 22px; align-items: start; }
+.yn-char { text-align: center; }
+.yn-char .tag { display: inline-block; margin-top: 6px; font-family: "Caveat"; font-size: 22px; color: var(--ink-soft); }
+.bubble { padding: 10px 14px; border-radius: 16px; margin: 8px 0; max-width: 92%; font-size: 16px; }
+.bubble.me { background: #e3efff; margin-left: auto; border-bottom-right-radius: 4px; }
+.bubble.them { background: #f3ead4; border-bottom-left-radius: 4px; font-style: italic; }
+.yn-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.outcome { margin-top: 12px; padding: 12px 14px; border-radius: 12px; font-size: 15px; animation: rise .3s ease both; }
+.outcome.good { background: #e3f6ec; border-left: 4px solid var(--green); }
+.outcome.bad { background: #fde7e3; border-left: 4px solid var(--red); }
+.mood { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); margin-bottom: 8px; }
+.mood-bar { flex: 1; height: 10px; border-radius: 99px; background: var(--paper-2); overflow: hidden; }
+.mood-bar i { display: block; height: 100%; width: 50%; background: linear-gradient(90deg, var(--red), var(--glow), var(--green)); transition: width .5s; }
+.mood b { color: var(--ink); min-width: 40px; text-align: right; }
+.blitz-q { font-size: clamp(20px, 3.4vw, 26px); margin: 8px 0 12px; }
+.timebar { height: 8px; border-radius: 99px; background: var(--paper-2); overflow: hidden; }
+.timebar i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, var(--red), var(--glow)); }
+
+/* официант: тёмные короткие волосы и усы */
+.head .stache { display: none; }
+.head.waiter .hair { left: 26px; top: 24px; width: 128px; height: 80px; border-radius: 60px 60px 20px 20px; background: #2d2018; }
+.head.waiter .face-c { background: #e9bf9f; }
+.head.waiter .stache { display: block; position: absolute; left: 66px; top: 124px; width: 48px; height: 12px; border-radius: 12px 12px 4px 4px; background: #2d2018; }
+.head.waiter .cheek { display: none; }
+
+@media (max-width: 700px) {
+  .yn-parts, .yn-stage { grid-template-columns: 1fr; }
+  .yn-char .head { transform: scale(.8); margin: -16px auto -10px; }
+}
