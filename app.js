@@ -10,11 +10,11 @@
     { id: "story",    e: "💬", title: "Как всё началось",      desc: "ВДНХ, наука и легендарное «неа пхахаха»",   color: "#2b5278", stamp: "ГЛАВВИНО", se: "🍷" },
     { id: "pole",     e: "🏮", title: "Фонарный пилон",         desc: "Мини-игра на ловкость: покори фонарь",      color: "#c99a12", stamp: "ФОНАРЬ",   se: "🏮" },
     { id: "memory",   e: "🎞️", title: "Мемори и мультик",       desc: "Найди пары и оживи 15 кадров",              color: "#c46a9c", stamp: "КАДР",     se: "🎞️" },
-    { id: "dossier",  e: "🕵️‍♀️", title: "Досье: Дари",           desc: "Насколько хорошо ты помнишь нас?",          color: "#8e2a5a", stamp: "ДОСЬЕ",    se: "👑" },
+    { id: "dossier",  e: "🕵️‍♀️", title: "Досье: Дари",           desc: "Сложный тест — и только потом откроется досье", color: "#8e2a5a", stamp: "ДОСЬЕ",    se: "👑" },
     { id: "map",      e: "🗺️", title: "Карта Болгарии",         desc: `${PLACES.length} мест: от знаменитых до секретных`, color: "#00966e", stamp: "КАРТА", se: "🗺️" },
     { id: "academy",  e: "🎓", title: "Болгарская академия",    desc: "Кивок-наоборот, ложные друзья, разговорник", color: "#2b7bd6", stamp: "АКАДЕМИЯ", se: "🎓" },
     { id: "suitcase", e: "🧳", title: "Собери чемодан",         desc: "Что взять в новую жизнь, а что оставить",    color: "#7b4fc9", stamp: "БАГАЖ",    se: "🧳" },
-    { id: "quizbg",   e: "📝", title: "Экзамен на болгарку",   desc: `${QUIZ_BG.length} вопросов, чтобы сойти за местную`, color: "#d62612", stamp: "НАЗДРАВЕ", se: "🥂" },
+    { id: "quizbg",   e: "📝", title: "Правда или выдумка?",   desc: `Экзамен на болгарку: ${MYTHS.length} утверждений`, color: "#d62612", stamp: "НАЗДРАВЕ", se: "🥂" },
   ];
   const MAP_GOAL = 15; // сколько мест открыть на карте ради штампа
 
@@ -134,7 +134,8 @@
     state.done[id] = true; save();
     const ch = CHAPTERS.find((c) => c.id === id);
     sfx("stamp"); confetti();
-    toast(`Новый штамп в паспорте: ${ch.se} ${ch.stamp}!`);
+    const phrases = ["Новый штамп в паспорте", "Шлёп! Ещё один штамп", "Пограничник одобряет", "Паспорт стал тяжелее", "Штамп поставлен"];
+    toast(`${phrases[(doneCount() - 1) % phrases.length]}: ${ch.se} ${ch.stamp}!`);
     updateCount();
     return true;
   }
@@ -149,8 +150,8 @@
       : `<div class="stamp" title="${esc(ch.title)}">${ch.e}</div>`;
   }
 
-  function doneBanner(text, btns = "") {
-    return `<div class="done-banner"><div class="txt"><b>Штамп получен!</b><br>${text}</div>${btns}<button class="btn" data-go="hub">В терминал ✈</button></div>`;
+  function doneBanner(title, text, btns = "") {
+    return `<div class="done-banner"><div class="txt"><b>${title}</b><br>${text}</div>${btns}<button class="btn" data-go="hub">В терминал ✈</button></div>`;
   }
 
   /* ---------- Роутер ---------- */
@@ -345,14 +346,36 @@
       }
       await sleep(600);
       if (my !== routeToken) return;
-      giveStamp(ch.id);
       $("#storyEnd", s).innerHTML = `
         <div class="card" style="margin-top:22px">
           <p style="font-size:17px;margin-top:0">${CHAT_GUESS.after}</p>
           <p style="margin-bottom:6px;color:var(--ink-soft)">А вот и оригинал — исторический документ:</p>
           <img class="real-shot" src="img/chat.png" alt="Скриншот первой переписки">
         </div>
-        ${doneBanner("Глава «Как всё началось» пройдена. Следующая остановка — фонари!", `<button class="btn ghost" data-go="ch/pole">К фонарям 🏮</button>`)}`;
+        <h3 class="section-title">📜 Хроника дружбы</h3>
+        <p style="color:var(--muted-night);margin:0 0 14px">А дальше было вот что — жми «Что было дальше?»:</p>
+        <ol class="timeline" id="timeline"></ol>
+        <div id="storyBanner" hidden>${doneBanner("Первый штамп в паспорте! 🍷", "С этого «неа» всё и началось. Следующая остановка — фонари!", `<button class="btn ghost" data-go="ch/pole">К фонарям 🏮</button>`)}</div>`;
+      revealTimeline();
+    }
+    function revealTimeline() {
+      const ol = $("#timeline", s);
+      let k = 0;
+      const next = () => {
+        if (k >= TIMELINE.length) return;
+        const t = TIMELINE[k++];
+        const li = el(`<li class="tl-item"><span class="tl-date">${esc(t.date)}</span><span class="tl-e">${t.e}</span><p>${esc(t.text)}</p></li>`);
+        ol.append(li); sfx("flip");
+        $$(".tl-more", ol).forEach((x) => x.remove());
+        if (k < TIMELINE.length) {
+          const more = el(`<li class="tl-more"><button class="btn small">Что было дальше? ↓</button></li>`);
+          more.firstChild.onclick = next; ol.append(more);
+        } else {
+          $("#storyBanner", s).hidden = false;
+          giveStamp(ch.id);
+        }
+      };
+      next();
     }
     function askGuess() {
       return new Promise((resolve) => {
@@ -445,7 +468,7 @@
     }
     function finish() {
       giveStamp(ch.id);
-      $("#poleEnd", s).innerHTML = doneBanner("Все трюки на фонаре выполнены. Москва аплодирует стоя!", `<button class="btn ghost" data-go="ch/memory">Смотреть мультик 🎞️</button>`);
+      $("#poleEnd", s).innerHTML = doneBanner("Фонарь покорён! 🏮", "Все трюки выполнены. Парк аплодирует стоя!", `<button class="btn ghost" data-go="ch/memory">Смотреть мультик 🎞️</button>`);
     }
     $("#hop", s).onclick = hop;
     meter.onclick = hop;
@@ -497,7 +520,7 @@
           toast(PHOTOS[+a.dataset.p].cap, 1800);
           if (pairs === picks.length) {
             giveStamp(ch.id);
-            $("#memEnd", pane).innerHTML = doneBanner(`Все пары найдены за ${moves} ходов! Теперь включи мультик — кадры шли подряд, и они оживают.`, `<button class="btn ghost" id="toFlip">Включить мультик 🎞️</button>`);
+            $("#memEnd", pane).innerHTML = doneBanner("Пары сошлись! 🎞️", `Всё найдено за ${moves} ходов. Теперь включи мультик — кадры шли подряд, и они оживают.`, `<button class="btn ghost" id="toFlip">Включить мультик 🎞️</button>`);
             $("#toFlip", pane).onclick = () => tab("flip");
           }
         } else {
@@ -564,18 +587,21 @@
     let i = 0, score = 0;
     function show() {
       const q = questions[i];
-      box.innerHTML = `<div class="card quiz">
+      const who = q.type === "who";
+      const opts = who ? [`👑 ${GAME.heroName}`, `🎧 ${GAME.fromName}`] : q.a;
+      const correct = who ? (q.c === "dari" ? 0 : 1) : q.c;
+      box.innerHTML = `<div class="card quiz ${who ? "quiz-who" : ""}">
         <div class="progress"><i style="width:${(i / questions.length) * 100}%"></i></div>
-        <div class="qn">Вопрос ${i + 1} из ${questions.length}</div>
-        <h3>${esc(q.q)}</h3>
-        <div class="opts">${q.a.map((a, k) => `<button class="opt" data-k="${k}">${esc(a)}</button>`).join("")}</div>
+        <div class="qn">${who ? "Кто это написал?" : "Вопрос"} · ${i + 1} из ${questions.length}</div>
+        ${who ? `<blockquote class="quote">${esc(q.q)}</blockquote>` : `<h3>${esc(q.q)}</h3>`}
+        <div class="opts ${who ? "opts-who" : ""}">${opts.map((a, k) => `<button class="opt" data-k="${k}">${esc(a)}</button>`).join("")}</div>
         <div id="qNote"></div>
       </div>`;
       $$(".opt", box).forEach((b) => b.onclick = () => {
-        const k = +b.dataset.k, ok = k === q.c;
+        const k = +b.dataset.k, ok = k === correct;
         if (ok) score++;
         sfx(ok ? "ok" : "bad");
-        $$(".opt", box).forEach((x) => { x.disabled = true; if (+x.dataset.k === q.c) x.classList.add("right"); });
+        $$(".opt", box).forEach((x) => { x.disabled = true; if (+x.dataset.k === correct) x.classList.add("right"); });
         if (!ok) b.classList.add("wrong");
         $("#qNote", box).innerHTML = `<div class="note">${ok ? "✅ " : "❌ "}${esc(q.note)}</div>
           <div class="actions"><button class="btn green" id="qNext">${i < questions.length - 1 ? "Следующий →" : "Результат 🏁"}</button></div>`;
@@ -600,28 +626,22 @@
      ГЛАВА 4 — Досье
      ====================================================================== */
   function renderDossier(ch) {
+    const open = !!state.done[ch.id];
     const s = mount(`
-      ${chapterHead(ch, "Совершенно секретно: всё, что известно о главной героине. Проверь, хорошо ли ты помнишь нашу историю.")}
+      ${chapterHead(ch, "Досье на главную героиню засекречено. Чтобы его открыть, пройди тест — он сложный: детали из нашей переписки и вопросы «кто это написал?».")}
       <div class="dossier">
-        <div>
-          <div class="card dossier-card">
-            <div class="stampy">СЕКРЕТНО</div>
-            <img class="pic" src="${PHOTOS[8].src}" alt="${GAME.heroName}">
-            <dl>
-              <dt>Имя</dt><dd>${GAME.heroName}</dd>
-              <dt>Кодовое имя</dt><dd>Принцесса Кудряшек</dd>
-              <dt>Приметы</dt><dd>Кудри, которым завидует Мерида из «Храброго сердца»</dd>
-              <dt>Навыки</dt><dd>Пилон (в том числе на фонарях), умение объяснить что угодно, помощь всем вокруг</dd>
-              <dt>Ум</dt><dd>Опасно высокий</dd>
-              <dt>Красота</dt><dd>Аналогично</dd>
-              <dt>Слабость</dt><dd>Главвино (хотя в первый раз сказала «неа»)</dd>
-              <dt>Новая база</dt><dd>София, Болгария <span class="flag-i"></span></dd>
-              <dt>Статус</dt><dd>Уезжает надолго, но не навсегда</dd>
-            </dl>
-          </div>
-          <div class="compliment">
-            <div class="c-text" id="cText">Нажми кнопку — и узнаешь правду о себе</div>
-            <button class="btn red small" id="cBtn">Генератор правды 💌</button>
+        <div class="dossier-side">
+          <div class="card dossier-card ${open ? "" : "locked"}" id="dCard">
+            <div class="stampy" id="dStamp">${open ? "РАССЕКРЕЧЕНО" : "СЕКРЕТНО"}</div>
+            <div class="d-inner">
+              <img class="pic" src="${PHOTOS[8].src}" alt="${GAME.heroName}">
+              <dl>${DOSSIER.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+              <div class="compliment">
+                <div class="c-text" id="cText">Нажми кнопку — и узнаешь правду о себе</div>
+                <button class="btn red small" id="cBtn">Генератор правды 💌</button>
+              </div>
+            </div>
+            <div class="lock-ov"><div><div style="font-size:46px">🔒</div><b>Гриф «Совершенно секретно»</b><p>Досье откроется, когда ты ответишь на все вопросы теста.</p></div></div>
           </div>
         </div>
         <div id="quizBox"></div>
@@ -634,13 +654,20 @@
     };
     quiz($("#quizBox", s), QUIZ_US, {
       verdicts: [
-        { min: 1, title: "Идеально! 👑", text: "Ты помнишь всё. Досье подтверждено." },
-        { min: .6, title: "Отлично!", text: "Почти всё помнишь. Остальное вспомним на проводах." },
-        { min: 0, title: "Хм-м 😄", text: "Кажется, кто-то слишком много дегустировал. Попробуй ещё раз!" },
+        { min: 1, title: "Безупречно! 👑", text: "Ты помнишь каждую мелочь. Агент высшей категории." },
+        { min: .75, title: "Почти идеально!", text: "Пару деталей забыла — вспомним на проводах." },
+        { min: .5, title: "Неплохо!", text: "Переписка длинная, а соусов было много. Можно перепройти." },
+        { min: 0, title: "Хм-м 😄", text: "Кажется, кто-то отвечал сквозь сон в 5:30. Попробуй ещё раз!" },
       ],
       onFinish: () => {
+        const card = $("#dCard", s);
+        if (card.classList.contains("locked")) {
+          card.classList.remove("locked"); card.classList.add("unlocking");
+          $("#dStamp", s).textContent = "РАССЕКРЕЧЕНО";
+          setTimeout(() => card.scrollIntoView({ behavior: "smooth", block: "start" }), 900);
+        }
         giveStamp(ch.id);
-        $("#dEnd", s).innerHTML = doneBanner("Досье закрыто. Дальше — вся Болгария на одной карте.", `<button class="btn ghost" data-go="ch/map">К карте 🗺️</button>`);
+        $("#dEnd", s).innerHTML = doneBanner("Досье рассекречено! 🕵️‍♀️", "Гриф снят — читай, что про тебя известно. Дальше — вся Болгария на одной карте.", `<button class="btn ghost" data-go="ch/map">К карте 🗺️</button>`);
       },
     });
   }
@@ -855,13 +882,13 @@
     function checkDone() {
       if (state.seen.length >= MAP_GOAL && !state.done[ch.id]) giveStamp(ch.id);
       if (state.done[ch.id] && !$("#mapEnd .done-banner", s)) {
-        $("#mapEnd", s).innerHTML = doneBanner(`Ты открыла ${MAP_GOAL}+ мест — штамп твой! Но карту можно изучать и дальше: здесь ещё много секретов.`, `<button class="btn ghost" data-go="ch/academy">В академию 🎓</button>`);
+        $("#mapEnd", s).innerHTML = doneBanner("Картограф года! 🗺️", `Ты открыла ${MAP_GOAL}+ мест. Но карту можно изучать и дальше: здесь ещё много секретов.`, `<button class="btn ghost" data-go="ch/academy">В академию 🎓</button>`);
       }
     }
 
     function drawnPane() {
       mpane.innerHTML = `<div class="drawn-map"><img src="img/map-drawing.webp" alt="Нарисованная карта Болгарии"></div>
-        <p class="drawn-note">Эту карту я нарисовала для тебя ❤️ А на интерактивной — все места, куда стоит заглянуть.</p>`;
+        <p class="drawn-note">Эту карту я нарисовала для тебя вместе с GPT ❤️ А на интерактивной — все места, куда стоит заглянуть.</p>`;
     }
     function wishPane() {
       const list = PLACES.filter((p) => state.wish.includes(p.id));
@@ -894,7 +921,7 @@
       $("#tk2", s).textContent = prog.ff || state.done[ch.id] ? "✓" : "";
       if (prog.head && prog.ff) giveStamp(ch.id);
       if (state.done[ch.id] && !$("#aEnd .done-banner", s))
-        $("#aEnd", s).innerHTML = doneBanner("Академия окончена с отличием. Теперь ты точно не перепутаешь «да» и «нет»… наверное.", `<button class="btn ghost" data-go="ch/suitcase">Собирать чемодан 🧳</button>`);
+        $("#aEnd", s).innerHTML = doneBanner("Диплом с отличием! 🎓", "Теперь ты точно не перепутаешь «да» и «нет»… наверное.", `<button class="btn ghost" data-go="ch/suitcase">Собирать чемодан 🧳</button>`);
     }
     function tab(t) {
       $$("#atabs .tab", s).forEach((b) => b.classList.toggle("on", b.dataset.t === t));
@@ -1022,7 +1049,7 @@
       $("#zip", s).disabled = true;
       $("#cnt", s).innerHTML = `<b>${right} из ${SUITCASE.length}</b> решений верные. ${right === SUITCASE.length ? "Идеальные сборы!" : "Под каждой вещью — объяснение."}`;
       giveStamp(ch.id);
-      $("#sEnd", s).innerHTML = doneBanner("Чемодан собран! Осталось сдать экзамен на болгарку.", `<button class="btn ghost" id="reCase">Собрать заново</button><button class="btn ghost" data-go="ch/quizbg">На экзамен <span class="flag-i"></span></button>`);
+      $("#sEnd", s).innerHTML = doneBanner("Чемодан застёгнут! 🧳", "Осталось последнее испытание: правда или выдумка?", `<button class="btn ghost" id="reCase">Собрать заново</button><button class="btn ghost" data-go="ch/quizbg">На экзамен 📝</button>`);
       $("#reCase", s).onclick = () => route();
     };
   }
@@ -1032,22 +1059,77 @@
      ====================================================================== */
   function renderQuizBg(ch) {
     const s = mount(`
-      ${chapterHead(ch, "Финальное испытание: проверим, сойдёшь ли ты за местную. Подсказки — в главах «Карта» и «Академия».")}
+      ${chapterHead(ch, "Последнее испытание — совсем новые факты, которых не было ни на карте, ни в академии. Правда это или выдумка? Держи серию 🔥")}
       <div id="qb"></div><div id="qEnd"></div>`);
-    quiz($("#qb", s), QUIZ_BG, {
-      verdicts: [
-        { min: 1, title: 'Истинска българка! <span class="flag-i"></span>', text: "Настоящая болгарка. Наздраве!" },
-        { min: .7, title: "Почти местная!", text: "Ещё пара месяцев в Софии — и никто не отличит." },
-        { min: .4, title: "Туристка с потенциалом", text: "Загляни в академию и попробуй ещё раз." },
-        { min: 0, title: "Добре дошла!", text: "Всё впереди — ты только начинаешь. Попробуй ещё раз!" },
-      ],
-      onFinish: () => {
-        giveStamp(ch.id);
-        const all = doneCount() === CHAPTERS.length;
-        $("#qEnd", s).innerHTML = doneBanner(all ? "Все штампы собраны! Секретный выход открыт." : "Экзамен сдан. Проверь в терминале, какие штампы ещё не собраны.",
-          all ? `<button class="btn red" data-go="finale">К секретному выходу 🎁</button>` : "");
-      },
-    });
+    const box = $("#qb", s);
+    let deck, i, score, streak, best, answered;
+    const key = (e) => {
+      if (!deck) return;
+      if (!answered && e.key === "ArrowLeft") answer(false);
+      else if (!answered && e.key === "ArrowRight") answer(true);
+      else if (answered && (e.key === "Enter" || e.key === "ArrowRight")) next();
+    };
+    addEventListener("keydown", key);
+    onCleanup(() => removeEventListener("keydown", key));
+    function start() { deck = shuffle(MYTHS); i = 0; score = 0; streak = 0; best = 0; draw(); }
+    function draw() {
+      answered = false;
+      const m = deck[i];
+      box.innerHTML = `<div class="myth">
+        <div class="myth-top"><span>Карточка ${i + 1} / ${deck.length}</span><span>Верно: <b>${score}</b></span><span class="streak">🔥 ${streak}</span></div>
+        <div class="myth-card" id="mc"><div class="myth-stamp" id="ms"></div><p class="myth-s">${esc(m.s)}</p><div class="myth-note" id="mn"></div></div>
+        <div class="myth-btns" id="mb">
+          <button class="btn red" data-v="0">❌ Выдумка</button>
+          <button class="btn green" data-v="1">✅ Правда</button>
+        </div>
+        <p class="myth-hint">Можно клавишами: ← выдумка, → правда</p>
+      </div>`;
+      $$("#mb [data-v]", box).forEach((b) => b.onclick = () => answer(b.dataset.v === "1"));
+    }
+    function answer(v) {
+      if (answered) return;
+      answered = true;
+      const m = deck[i], ok = v === m.t;
+      if (ok) { score++; streak++; best = Math.max(best, streak); } else streak = 0;
+      sfx(ok ? "ok" : "bad");
+      const st = $("#ms", box);
+      st.textContent = m.t ? "ПРАВДА" : "ВЫДУМКА";
+      st.className = "myth-stamp show " + (m.t ? "t" : "f");
+      $("#mc", box).classList.add(ok ? "good" : "bad");
+      $("#mn", box).innerHTML = `<b>${ok ? ["Точно!", "В яблочко!", "Местная!", "Браво!"][score % 4] : ["Мимо!", "Попалась!", "Не-а!"][i % 3]}</b> ${esc(m.note)}`;
+      $(".streak", box).textContent = `🔥 ${streak}`;
+      if (streak > 0 && streak % 5 === 0) toast(`Серия ${streak}! Ты в ударе 🔥`);
+      $("#mb", box).innerHTML = `<button class="btn" id="mNext">${i < deck.length - 1 ? "Следующая карточка →" : "Итоги 🏁"}</button>`;
+      $("#mNext", box).onclick = next;
+    }
+    function next() {
+      const card = $("#mc", box);
+      if (!card || card.classList.contains("fly")) return;
+      card.classList.add("fly");
+      setTimeout(() => { i++; i < deck.length ? draw() : result(); }, 280);
+    }
+    function result() {
+      deck = null;
+      const r = score / MYTHS.length;
+      const v = [
+        { min: 1, t: "Истинска българка!", d: "Ни одной ошибки. Тебя уже можно выдавать за местную." },
+        { min: .75, t: "Почти местная!", d: "Ещё пара месяцев в Софии — и никто не отличит." },
+        { min: .5, t: "Туристка с потенциалом", d: "Половина мифов разоблачена. Остальные разоблачишь на месте." },
+        { min: 0, t: "Добре дошла!", d: "Всё впереди — ты только начинаешь. Попробуй ещё раз!" },
+      ].find((x) => r >= x.min);
+      box.innerHTML = `<div class="card quiz" style="text-align:center">
+        <div class="score-big">${score}/${MYTHS.length}</div>
+        <h3 style="margin-top:12px">${v.t} <span class="flag-i"></span></h3><p>${v.d}</p>
+        <p style="color:var(--ink-soft)">Лучшая серия: 🔥 ${best}</p>
+        <button class="btn ghost" id="qAgain" style="color:var(--ink)">Перемешать и сыграть ещё</button></div>`;
+      $("#qAgain", box).onclick = () => { $("#qEnd", s).innerHTML = ""; start(); };
+      if (score === MYTHS.length) confetti();
+      giveStamp(ch.id);
+      const all = doneCount() === CHAPTERS.length;
+      $("#qEnd", s).innerHTML = doneBanner("Экзамен сдан! 🥂", all ? "Все штампы собраны — секретный выход открыт." : "Загляни в терминал: каких штампов ещё не хватает?",
+        all ? `<button class="btn red" data-go="finale">К секретному выходу 🎁</button>` : "");
+    }
+    start();
   }
 
   /* ======================================================================
