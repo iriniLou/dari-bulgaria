@@ -6,6 +6,7 @@
 const GAME = {
   heroName: "Дари",
   fromName: "Ирочка",         // подпись в финальном письме
+  fromGen: "Ирочки",          // то же имя в родительном падеже («отметки Ирочки»)
   partyDate: "17 октября",
   flight: { from: "MOW", fromCity: "Москва", to: "SOF", toCity: "София" },
 };
@@ -193,6 +194,7 @@ const CATS = {
   sea:     { label: "Море", color: "#2b7bd6", icon: "🌊" },
   wine:    { label: "Вино и вкусное", color: "#8e2a5a", icon: "🍷" },
   mystic:  { label: "Легенды и мистика", color: "#7b4fc9", icon: "🔮" },
+  mine:    { label: "Мои места", color: "#e0457b", icon: "📍" },
 };
 
 const PLACES = [

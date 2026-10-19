@@ -686,3 +686,37 @@ main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 80px; }
   .yn-parts, .yn-stage { grid-template-columns: 1fr; }
   .yn-char .head { transform: scale(.8); margin: -16px auto -10px; }
 }
+
+/* ====== Свои места и выгрузка карты ====== */
+.map-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.mine-btn { background: #e0457b; color: #fff; box-shadow: 0 6px 20px rgba(224,69,123,.35); }
+.map-box .add-hint {
+  display: none; position: absolute; left: 12px; right: 12px; top: 12px; z-index: 2;
+  background: rgba(31,42,38,.88); color: #fff; padding: 10px 14px; border-radius: 12px; font-weight: 700;
+  align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.map-box.adding .add-hint { display: flex; }
+.map-box.adding svg { cursor: crosshair; outline: 3px dashed #e0457b; outline-offset: -3px; }
+.map-box.adding .pin { opacity: .45; }
+.pin.mine .lbl { opacity: 1; font-size: 11px; }
+.place-list button.mine { border-color: rgba(224,69,123,.5); }
+.place-form { display: grid; gap: 12px; margin-top: 8px; }
+.place-form label { display: grid; gap: 4px; font-weight: 700; font-size: 14px; }
+.place-form label small { font-weight: 500; color: var(--ink-soft); }
+.place-form input, .place-form textarea, .fld input {
+  font: inherit; font-weight: 500; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: #fff; color: var(--ink); width: 100%;
+}
+.place-form input:focus, .place-form textarea:focus, .fld input:focus { outline: 2px solid #e0457b; border-color: transparent; }
+.place-form .coords { font-size: 12px; color: var(--ink-soft); }
+.modal { position: fixed; inset: 0; z-index: 105; background: rgba(5,8,14,.75); display: grid; place-items: center; padding: 16px; }
+.modal-card { position: relative; background: var(--paper); color: var(--ink); border-radius: 20px; padding: 24px; width: min(460px, 100%); box-shadow: var(--shadow); max-height: calc(100vh - 32px); overflow: auto; }
+.modal-card h3 { font-size: 20px; }
+.modal-card .lb-close { top: 10px; right: 12px; font-size: 22px; }
+.fld { display: grid; gap: 4px; font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+.checks { display: grid; gap: 8px; }
+.checks label { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1.5px solid var(--line); cursor: pointer; }
+.checks label b { margin-left: auto; color: var(--ink-soft); }
+.checks input { width: 18px; height: 18px; accent-color: #e0457b; }
+.checks label:has(input:disabled) { opacity: .5; cursor: default; }
+.ex-status { font-weight: 700; min-height: 1.4em; margin: 12px 0 0; }
+.ex-hint { font-size: 12.5px; color: var(--ink-soft); margin: 6px 0 0; }

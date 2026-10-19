@@ -21,7 +21,7 @@
   /* ---------- Состояние (сохраняется в браузере) ---------- */
   const KEY = "dari-bg-v1";
   const state = Object.assign(
-    { started: false, done: {}, seen: [], wish: [], vol: 45, muted: false, finaleSeen: false },
+    { started: false, done: {}, seen: [], wish: [], custom: [], vol: 45, muted: false, finaleSeen: false },
     load()
   );
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
@@ -169,7 +169,15 @@
     else if (r === "") renderHub();
     else if (r === "hub") renderHub();
     else if (r === "finale") renderFinale();
-    else if (r.startsWith("ch/") && RENDER[chId]) RENDER[chId](CHAPTERS.find((c) => c.id === chId));
+    else if (r.startsWith("ch/") && RENDER[chId]) {
+      try { RENDER[chId](CHAPTERS.find((c) => c.id === chId)); }
+      catch (err) {
+        console.error(err);
+        mount(`<div class="card" style="text-align:center"><div style="font-size:44px">🛠️</div><h3>Ой, глава не загрузилась</h3>
+          <p>Обнови страницу. Если не помогло — открой игру в Chrome или Safari.</p><p style="color:var(--ink-soft);font-size:13px">${esc(err && err.message || err)}</p>
+          <button class="btn" data-go="hub">В терминал ✈</button></div>`);
+      }
+    }
     else renderHub();
     updateCount();
   }
@@ -276,7 +284,7 @@
       </div>`);
     $("#resetBtn", s).onclick = () => {
       if (!confirm("Стереть все штампы и начать игру с начала?")) return;
-      Object.assign(state, { started: false, done: {}, seen: [], wish: [], finaleSeen: false });
+      Object.assign(state, { started: false, done: {}, seen: [], wish: [], custom: [], finaleSeen: false });
       save(); go("intro");
     };
   }
@@ -701,24 +709,21 @@
   const CITIES = [["Бургас", 42.5, 27.47], ["Стара Загора", 42.43, 25.63], ["Шумен", 43.27, 26.92], ["Видин", 43.99, 22.88], ["Плевен", 43.42, 24.62]];
   const NUDGE = { buzludzha: [9, -5], shipka: [-7, 5], goldensands: [6, -9], aladzha: [-5, 6], boyana: [-8, 7], sofia: [5, -5], bansko: [5, -4], baikushev: [-4, 5] };
 
-  function buildMapSVG() {
+  const allPlaces = () => PLACES.concat(state.custom || []);
+  const findPlace = (id) => allPlaces().find((x) => x.id === id);
+  const toLonLat = (x, y) => ({ lon: +(x / 150 + 22.15).toFixed(4), lat: +(44.4 - y / 204).toFixed(4) });
+
+  function mapBase({ forExport = false } = {}) {
     const tri = (lon, lat, snow) => `<g transform="translate(${pt([lon, lat])})"><path d="M-14,9 L0,-12 L14,9 Z" fill="${snow ? "#9fb58f" : "#b9cfa4"}"/>${snow ? '<path d="M-5,-4.5 L0,-12 L5,-4.5 L2,-6 L0,-3.5 L-2,-6 Z" fill="#fff"/>' : ""}<path d="M2,-9 L12,9 L18,9 L7,-3 Z" fill="${snow ? "#8aa37a" : "#a9c193"}" opacity=".8"/></g>`;
     const line = (arr) => arr.map(pt).join(" ");
     const label = (txt, lon, lat, cls, extra = "") => `<text class="${cls}" x="${X(lon)}" y="${Y(lat)}" text-anchor="middle" ${extra}>${txt}</text>`;
-    const pins = PLACES.slice().sort((a, b) => a.gem - b.gem).map((p) => {
-      const [nx, ny] = NUDGE[p.id] || [0, 0];
-      const x = X(p.lon) + nx, y = Y(p.lat) + ny, c = CATS[p.cat].color, right = x > 820;
-      return `<g class="pin" data-id="${p.id}" data-cat="${p.cat}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(p.name)}">
-        <g class="pin-in">
-          <circle class="ring" r="10" stroke="${c}"/>
-          <circle class="dot" r="8" fill="${c}"/>
-          ${p.gem ? '<text y="3.5" text-anchor="middle" font-size="10" fill="#fff" pointer-events="none">★</text>' : ""}
-          <text class="heart" x="7" y="-8" ${state.wish.includes(p.id) ? "" : 'visibility="hidden"'}>♥</text>
-          <text class="lbl" x="${right ? -14 : 14}" y="4" text-anchor="${right ? "end" : "start"}">${esc(p.name)}</text>
-        </g></g>`;
-    }).join("");
-    return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Карта Болгарии">
-      <defs>
+    // В выгрузке стили страницы не действуют, поэтому шрифты и цвета — внутри SVG
+    const inlineStyle = forExport ? `<style>
+      .region-lbl{font:700 15px 'Comic Sans MS','Segoe Print',cursive;fill:rgba(31,42,38,.45)}
+      .city-lbl{font:600 11px Arial,Helvetica,sans-serif;fill:#44524c}
+      .sea-lbl{font:700 24px 'Comic Sans MS','Segoe Print',cursive;fill:#2b6f9e}</style>` : "";
+    return `
+      <defs>${inlineStyle}
         <pattern id="waves" width="40" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q10 2 20 8 T40 8" fill="none" stroke="#9fd2ee" stroke-width="1.4"/></pattern>
         <filter id="soft"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1f2a26" flood-opacity=".25"/></filter>
       </defs>
@@ -742,44 +747,192 @@
       ${label("Странджа", 27.25, 42.24, "region-lbl")}
       ${label("Марица", 25.3, 42.12, "region-lbl", 'fill="#3d87b5"')}
       <text class="sea-lbl" x="${X(29.05)}" y="${Y(42.75)}" text-anchor="middle" transform="rotate(90 ${X(29.05)} ${Y(42.75)})">Чёрное море</text>
-      ${CITIES.map(([n, la, lo]) => `<circle cx="${X(lo)}" cy="${Y(la)}" r="3.5" fill="#44524c"/><text class="city-lbl" x="${X(lo) + 6}" y="${Y(la) + 14}">${n}</text>`).join("")}
+      ${CITIES.map(([n, la, lo]) => `<circle cx="${X(lo)}" cy="${Y(la)}" r="3.5" fill="#44524c"/><text class="city-lbl" x="${X(lo) + 6}" y="${Y(la) + 14}">${n}</text>`).join("")}`;
+  }
+  const pinXY = (p) => { const [nx, ny] = NUDGE[p.id] || [0, 0]; return [X(p.lon) + nx, Y(p.lat) + ny]; };
+
+  function buildMapSVG() {
+    const pins = allPlaces().slice().sort((a, b) => (a.custom ? 2 : a.gem ? 1 : 0) - (b.custom ? 2 : b.gem ? 1 : 0)).map((p) => {
+      const [x, y] = pinXY(p), c = CATS[p.cat].color, right = x > 820;
+      return `<g class="pin ${p.custom ? "mine" : ""}" data-id="${p.id}" data-cat="${p.cat}" transform="translate(${x.toFixed(1)},${y.toFixed(1)})" tabindex="0" role="button" aria-label="${esc(p.name)}">
+        <g class="pin-in">
+          <circle class="ring" r="10" stroke="${c}"/>
+          ${p.custom
+            ? `<path class="drop" d="M0,4 C-7,-4 -9,-8 -9,-12 A9,9 0 1 1 9,-12 C9,-8 7,-4 0,4 Z" fill="${c}" stroke="#fff" stroke-width="2.5"/><circle cx="0" cy="-12" r="3.5" fill="#fff" pointer-events="none"/>`
+            : `<circle class="dot" r="8" fill="${c}"/>`}
+          ${p.gem ? '<text y="3.5" text-anchor="middle" font-size="10" fill="#fff" pointer-events="none">★</text>' : ""}
+          <text class="heart" x="7" y="-8" ${state.wish.includes(p.id) ? "" : 'visibility="hidden"'}>♥</text>
+          <text class="lbl" x="${right ? -14 : 14}" y="${p.custom ? -8 : 4}" text-anchor="${right ? "end" : "start"}">${esc(p.name)}</text>
+        </g></g>`;
+    }).join("");
+    return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Карта Болгарии">
+      ${mapBase()}
+      <g id="ghost"></g>
       <g id="pins">${pins}</g>
     </svg>`;
   }
 
+  /* ---------- Выгрузка карты в PNG / PDF ---------- */
+  function exportSVG(items) {
+    const pins = items.map((p, k) => {
+      const [x, y] = pinXY(p), c = CATS[p.cat].color;
+      return `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><circle r="12" fill="${c}" stroke="#fff" stroke-width="3"/>
+        <text y="4.5" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="${k + 1 > 99 ? 9 : 12}" fill="#fff">${k + 1}</text></g>`;
+    }).reverse().join(""); // первые номера — поверх
+    return `<svg viewBox="0 0 ${MAP_W} ${MAP_H}" width="${MAP_W * 2}" height="${MAP_H * 2}" xmlns="http://www.w3.org/2000/svg">${mapBase({ forExport: true })}${pins}</svg>`;
+  }
+  function loadImage(src) {
+    return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  }
+  async function exportCanvases(title, items, mode) {
+    try { await Promise.all(["900 80px Unbounded", "800 40px Manrope", "600 30px Manrope", "700 40px Caveat"].map((f) => document.fonts.load(f))); } catch (e) {}
+    const svgUrl = URL.createObjectURL(new Blob([exportSVG(items)], { type: "image/svg+xml;charset=utf-8" }));
+    const mapImg = await loadImage(svgUrl);
+    URL.revokeObjectURL(svgUrl);
+
+    const W = 2480, PAGE_H = 3508, M = 130, GAP = 70;
+    const colW = (W - 2 * M - GAP) / 2;
+    const meas = document.createElement("canvas").getContext("2d");
+    const wrap = (text, font, maxW) => {
+      meas.font = font;
+      const words = String(text).split(/\s+/).filter(Boolean), lines = [];
+      let cur = "";
+      words.forEach((w) => {
+        const t = cur ? cur + " " + w : w;
+        if (meas.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t;
+      });
+      if (cur) lines.push(cur);
+      return lines;
+    };
+    const F = { name: "800 40px Manrope, Arial, sans-serif", meta: "600 28px Manrope, Arial, sans-serif", note: "500 30px Manrope, Arial, sans-serif" };
+    const blocks = items.map((p, k) => {
+      const textW = colW - 90;
+      const name = wrap(p.name, F.name, textW);
+      const meta = [p.custom ? "📍 Моё место" : `${CATS[p.cat].icon} ${CATS[p.cat].label}${p.area ? " · " + p.area : ""}`];
+      const why = p.custom ? p.note : p.pick ? p.tip : state.wish.includes(p.id) ? p.text : p.text;
+      const note = why ? wrap(why, F.note, textW).slice(0, 6) : [];
+      const h = name.length * 50 + 40 + note.length * 40 + 40;
+      return { p, n: k + 1, name, meta, note, h };
+    });
+
+    function newCanvas(h) {
+      const c = document.createElement("canvas"); c.width = W; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fbf5e8"; ctx.fillRect(0, 0, W, h);
+      // орнамент-шевица сверху и снизу
+      [0, h - 26].forEach((yy) => { for (let x = 0; x < W; x += 52) {
+        ctx.fillStyle = "#d62612"; ctx.beginPath(); ctx.moveTo(x, yy + 13); ctx.lineTo(x + 13, yy); ctx.lineTo(x + 26, yy + 13); ctx.lineTo(x + 13, yy + 26); ctx.fill();
+        ctx.fillStyle = "#00966e"; ctx.beginPath(); ctx.moveTo(x + 26, yy + 13); ctx.lineTo(x + 39, yy); ctx.lineTo(x + 52, yy + 13); ctx.lineTo(x + 39, yy + 26); ctx.fill();
+      } });
+      return { c, ctx };
+    }
+    function drawHeader(ctx) {
+      ctx.fillStyle = "#1f2a26"; ctx.textBaseline = "alphabetic";
+      ctx.font = "900 92px Unbounded, Arial, sans-serif"; ctx.fillText(title, M, M + 90);
+      ctx.font = "700 52px Caveat, 'Comic Sans MS', cursive"; ctx.fillStyle = "#8a2b4a";
+      ctx.fillText(`Карта путешественницы ${GAME.heroName} · с любовью от ${GAME.fromGen || GAME.fromName} ❤️`, M, M + 160);
+      const mw = W - 2 * M, mh = mw * MAP_H / MAP_W, my = M + 210;
+      ctx.save(); ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(M, my, mw, mh, 30); else ctx.rect(M, my, mw, mh);
+      ctx.clip(); ctx.drawImage(mapImg, M, my, mw, mh); ctx.restore();
+      ctx.strokeStyle = "rgba(31,42,38,.15)"; ctx.lineWidth = 3; ctx.strokeRect(M, my, mw, mh);
+      return my + mh + 80;
+    }
+    function drawBlock(ctx, b, x, y) {
+      const c = CATS[b.p.cat].color;
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + 30, y + 30, 30, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = "800 30px Manrope, Arial, sans-serif"; ctx.textAlign = "center"; ctx.fillText(String(b.n), x + 30, y + 41); ctx.textAlign = "left";
+      let yy = y + 40; const tx = x + 90;
+      ctx.fillStyle = "#1f2a26"; ctx.font = F.name; b.name.forEach((l) => { ctx.fillText(l, tx, yy); yy += 50; });
+      ctx.fillStyle = "#55605a"; ctx.font = F.meta; ctx.fillText(b.meta[0], tx, yy - 6); yy += 40;
+      ctx.fillStyle = "#33403a"; ctx.font = F.note; b.note.forEach((l) => { ctx.fillText(l, tx, yy - 4); yy += 40; });
+    }
+    function drawFooter(ctx, h, page, pages) {
+      ctx.fillStyle = "#8a938d"; ctx.font = "600 26px Manrope, Arial, sans-serif";
+      ctx.fillText("irinilou.github.io/dari-bulgaria", M, h - 60);
+      if (pages > 1) { ctx.textAlign = "right"; ctx.fillText(`${page} / ${pages}`, W - M, h - 60); ctx.textAlign = "left"; }
+    }
+
+    if (mode === "png") {
+      // Две колонки, делим пункты пополам по высоте
+      const total = blocks.reduce((s, b) => s + b.h, 0);
+      let acc = 0, split = blocks.length;
+      for (let k = 0; k < blocks.length; k++) { if (acc + blocks[k].h / 2 > total / 2) { split = k; break; } acc += blocks[k].h; }
+      const left = blocks.slice(0, split), right = blocks.slice(split);
+      const colH = (arr) => arr.reduce((s, b) => s + b.h, 0);
+      const headerEnd = M + 210 + (W - 2 * M) * MAP_H / MAP_W + 80;
+      const H = Math.max(PAGE_H, headerEnd + Math.max(colH(left), colH(right)) + 160);
+      const { c, ctx } = newCanvas(H);
+      let y0 = drawHeader(ctx);
+      let y = y0; left.forEach((b) => { drawBlock(ctx, b, M, y); y += b.h; });
+      y = y0; right.forEach((b) => { drawBlock(ctx, b, M + colW + GAP, y); y += b.h; });
+      drawFooter(ctx, H, 1, 1);
+      return [c];
+    }
+    // PDF: страницы A4, пункты текут по колонкам
+    const pages = [];
+    let page = newCanvas(PAGE_H), col = 0, top = drawHeader(page.ctx), y = top;
+    const bottom = PAGE_H - 140;
+    pages.push(page);
+    blocks.forEach((b) => {
+      if (y + b.h > bottom) {
+        if (col === 0) { col = 1; y = top; }
+        else { page = newCanvas(PAGE_H); pages.push(page); col = 0; top = M + 40; y = top; }
+      }
+      drawBlock(page.ctx, b, M + col * (colW + GAP), y); y += b.h;
+    });
+    pages.forEach((pg, k) => drawFooter(pg.ctx, PAGE_H, k + 1, pages.length));
+    return pages.map((pg) => pg.c);
+  }
+  function loadScript(src) {
+    return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
+  }
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
   function renderMap(ch) {
+    if (!state.custom) state.custom = [];
     const s = mount(`
-      ${chapterHead(ch, `Твоя страна на одной карте: ${PLACES.length} мест, из них ★ ${PLACES.filter((p) => p.gem).length} малоизвестных — таких, о которых не трубят на каждом шагу. Открой хотя бы ${MAP_GOAL}, чтобы получить штамп. Сердечком отмечай, куда хочешь поехать.`)}
+      ${chapterHead(ch, `Твоя страна на одной карте: ${PLACES.length} мест, из них ★ ${PLACES.filter((p) => p.gem).length} малоизвестных. Открой хотя бы ${MAP_GOAL}, чтобы получить штамп. Сердечком отмечай, куда хочешь поехать, кнопкой «＋ Своё место» добавляй свои точки, а «⬇ Скачать карту» сохранит всё в PNG или PDF.`)}
       <div class="tabs" id="mtabs">
         <button class="tab on" data-t="map">🗺️ Интерактивная карта</button>
         <button class="tab" data-t="drawn">✏️ Карта от руки</button>
-        <button class="tab" data-t="wish">♥ Хочу поехать</button>
+        <button class="tab" data-t="wish">♥ Мой список</button>
       </div>
       <div id="mpane"></div>
       <div id="mapEnd"></div>`);
     const mpane = $("#mpane", s);
     let filters = { cats: new Set(Object.keys(CATS)), gem: false, pick: false };
-    let selected = null;
+    let selected = null, adding = null; // adding: { id?: редактируемое место } пока выбираем точку
 
     function tab(t) {
       $$("#mtabs .tab", s).forEach((b) => b.classList.toggle("on", b.dataset.t === t));
+      adding = null;
       if (t === "map") mapPane(); else if (t === "drawn") drawnPane(); else wishPane();
     }
     $$("#mtabs .tab", s).forEach((b) => b.onclick = () => tab(b.dataset.t));
 
-    function progressText() { return `открыто <b>${state.seen.length}</b> / ${PLACES.length}`; }
+    const seenCount = () => state.seen.filter((id) => PLACES.some((p) => p.id === id)).length;
+    function progressText() { return `открыто <b>${seenCount()}</b> / ${PLACES.length}`; }
     function visible(p) { return filters.cats.has(p.cat) && (!filters.gem || p.gem) && (!filters.pick || p.pick); }
 
     function mapPane() {
       mpane.innerHTML = `
+        <div class="map-tools">
+          <button class="btn small mine-btn" id="addBtn">＋ Своё место</button>
+          <button class="btn small" id="expBtn">⬇ Скачать карту</button>
+          <span class="map-progress" id="mprog">${progressText()}</span>
+        </div>
         <div class="filters" id="filters">
           ${Object.entries(CATS).map(([k, c]) => `<button class="chip" data-c="${k}" style="--cc:${c.color}"><i></i>${c.icon} ${c.label}</button>`).join("")}
           <button class="chip gem ${filters.gem ? "on" : ""}" data-g="gem">★ Только секретные</button>
-          <button class="chip gem ${filters.pick ? "on" : ""}" data-g="pick">📌 Мои отметки для тебя</button>
-          <span class="map-progress" id="mprog">${progressText()}</span>
+          <button class="chip gem ${filters.pick ? "on" : ""}" data-g="pick">📌 Отметки ${esc(GAME.fromGen || GAME.fromName)}</button>
         </div>
         <div class="map-layout">
-          <div class="map-box" id="mapBox">${buildMapSVG()}</div>
+          <div class="map-box" id="mapBox">${buildMapSVG()}<div class="add-hint" id="addHint">👆 Нажми на карте, где находится место <button class="btn small outline-ink" id="cancelAdd">Отмена</button></div></div>
           <div class="place-panel"><div class="card" id="panel"></div></div>
         </div>
         <div class="place-list" id="plist"></div>`;
@@ -799,17 +952,21 @@
         filters[b.dataset.g] = !filters[b.dataset.g]; b.classList.toggle("on", filters[b.dataset.g]); applyFilters();
       });
       $$(".pin", mpane).forEach((g) => {
-        g.addEventListener("click", () => select(g.dataset.id));
+        g.addEventListener("click", (e) => { if (adding) return; e.stopPropagation(); select(g.dataset.id); });
         g.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(g.dataset.id); } });
       });
+      $("#mapBox svg", mpane).addEventListener("click", onMapClick);
+      $("#addBtn", mpane).onclick = () => startAdding({});
+      $("#cancelAdd", mpane).onclick = (e) => { e.stopPropagation(); stopAdding(); selected ? select(selected, true) : emptyPanel(); };
+      $("#expBtn", mpane).onclick = openExport;
       scalePins();
       applyFilters();
-      if (selected) select(selected, true); else emptyPanel();
+      if (selected && findPlace(selected)) select(selected, true); else emptyPanel();
     }
     function scalePins() {
       const box = $("#mapBox", mpane); if (!box) return;
       const k = Math.min(2.4, Math.max(1, 780 / box.clientWidth));
-      $$(".pin-in", box).forEach((g) => g.setAttribute("transform", `scale(${k})`));
+      $$(".pin-in, .ghost-in", box).forEach((g) => g.setAttribute("transform", `scale(${k})`));
     }
     const onResize = () => scalePins();
     addEventListener("resize", onResize);
@@ -817,18 +974,18 @@
 
     function applyFilters() {
       $$(".pin", mpane).forEach((g) => {
-        const p = PLACES.find((x) => x.id === g.dataset.id);
-        g.classList.toggle("hidden", !visible(p));
+        const p = findPlace(g.dataset.id);
+        g.classList.toggle("hidden", !p || !visible(p));
       });
-      const list = PLACES.filter(visible);
+      const list = allPlaces().filter(visible);
       $("#plist", mpane).innerHTML = list.map((p) =>
-        `<button data-id="${p.id}" class="${state.seen.includes(p.id) ? "seen" : ""}" style="--cc:${CATS[p.cat].color}"><i></i><span>${esc(p.name)}</span>${p.gem ? "★" : ""}${state.seen.includes(p.id) ? " ✓" : ""}</button>`).join("");
+        `<button data-id="${p.id}" class="${state.seen.includes(p.id) ? "seen" : ""} ${p.custom ? "mine" : ""}" style="--cc:${CATS[p.cat].color}"><i></i><span>${esc(p.name)}</span>${p.gem ? "★" : ""}${p.custom ? "📍" : state.seen.includes(p.id) ? " ✓" : ""}</button>`).join("");
       $$("#plist button", mpane).forEach((b) => b.onclick = () => { select(b.dataset.id); $(innerWidth <= 860 ? "#panel" : "#mapBox", mpane).scrollIntoView({ behavior: "smooth", block: "start" }); });
     }
     function emptyPanel() {
       $("#panel", mpane).innerHTML = `<div class="empty"><div class="big">📍</div>
         <h3 style="font-size:18px">Выбери точку на карте</h3>
-        <p>Цвет — тип места, ★ — секретное место, 📌 — мои личные рекомендации специально для твоей карты на стене.</p>
+        <p>Цвет — тип места, ★ — секретное место, 📌 — мои рекомендации для твоей карты на стене, розовая капля — места, которые добавила ты.</p>
         <button class="btn green" id="rnd">Удиви меня 🎲</button></div>`;
       $("#rnd", mpane).onclick = () => {
         const pool = PLACES.filter((p) => visible(p) && !state.seen.includes(p.id));
@@ -836,12 +993,103 @@
         select(p.id);
       };
     }
+
+    /* --- свои места --- */
+    function startAdding(ctx) {
+      adding = ctx;
+      $("#mapBox", mpane).classList.add("adding");
+      $("#ghost", mpane).innerHTML = "";
+      $("#panel", mpane).innerHTML = `<div class="empty"><div class="big">👆</div>
+        <h3 style="font-size:18px">${ctx.id ? "Куда переставить?" : "Где это место?"}</h3>
+        <p>Нажми на карте точку, где оно находится. Потом можно будет вписать название и заметку.</p></div>`;
+      if (innerWidth <= 860) $("#mapBox", mpane).scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    function stopAdding() {
+      adding = null;
+      const box = $("#mapBox", mpane); if (box) box.classList.remove("adding");
+      const g = $("#ghost", mpane); if (g) g.innerHTML = "";
+    }
+    function onMapClick(e) {
+      if (!adding) return;
+      const svg = e.currentTarget, p = svg.createSVGPoint();
+      p.x = e.clientX; p.y = e.clientY;
+      const { x, y } = p.matrixTransform(svg.getScreenCTM().inverse());
+      const ll = toLonLat(x, y);
+      $("#ghost", mpane).innerHTML = `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><g class="ghost-in"><path d="M0,4 C-7,-4 -9,-8 -9,-12 A9,9 0 1 1 9,-12 C9,-8 7,-4 0,4 Z" fill="${CATS.mine.color}" stroke="#fff" stroke-width="2.5"/><circle cx="0" cy="-12" r="3.5" fill="#fff"/></g></g>`;
+      scalePins();
+      sfx("flip");
+      placeForm(Object.assign({}, adding.id ? findPlace(adding.id) : {}, ll), !!adding.id);
+    }
+    function placeForm(draft, editing) {
+      $("#panel", mpane).innerHTML = `
+        <div class="cat" style="--cc:${CATS.mine.color}">📍 ${editing ? "Изменить место" : "Новое место"}</div>
+        <form class="place-form" id="pform">
+          <label>Название<input name="name" required maxlength="60" placeholder="Например: та самая кофейня" value="${esc(draft.name || "")}"></label>
+          <label>Заметка <small>(почему сюда, с кем, что попробовать)</small><textarea name="note" rows="4" maxlength="400" placeholder="Например: съездить с Ирочкой, когда прилетит в гости">${esc(draft.note || "")}</textarea></label>
+          <div class="coords">Координаты: ${draft.lat.toFixed(3)}, ${draft.lon.toFixed(3)}</div>
+          <div class="row">
+            <button class="btn small mine-btn" type="submit">Сохранить 📍</button>
+            <button class="btn small outline-ink" type="button" id="reposBtn">Выбрать другую точку</button>
+            <button class="btn small outline-ink" type="button" id="cancelForm">Отмена</button>
+          </div>
+        </form>`;
+      const form = $("#pform", mpane);
+      setTimeout(() => form.name.focus(), 50);
+      $("#reposBtn", mpane).onclick = () => startAdding(adding || {});
+      $("#cancelForm", mpane).onclick = () => { stopAdding(); selected && findPlace(selected) ? select(selected, true) : emptyPanel(); };
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const name = form.name.value.trim(); if (!name) return;
+        const note = form.note.value.trim();
+        let id = draft.id;
+        if (editing) Object.assign(state.custom.find((x) => x.id === id), { name, note, lat: draft.lat, lon: draft.lon });
+        else { id = "my-" + Date.now().toString(36); state.custom.push({ id, name, note, lat: draft.lat, lon: draft.lon, cat: "mine", custom: true, area: "" }); }
+        save(); sfx("ok");
+        toast(editing ? "Место обновлено 📍" : `«${name}» теперь на карте 📍`);
+        stopAdding(); selected = id;
+        filters.cats.add("mine");
+        mapPane();
+      };
+    }
+    function customPanel(p) {
+      const wished = state.wish.includes(p.id);
+      $("#panel", mpane).innerHTML = `
+        <div class="cat" style="--cc:${CATS.mine.color}">📍 Моё место</div>
+        <h3>${esc(p.name)}</h3>
+        <div class="area">${p.lat.toFixed(3)}, ${p.lon.toFixed(3)}</div>
+        ${p.note ? `<p class="tip" style="color:var(--ink)">${esc(p.note)}</p>` : `<p style="color:var(--ink-soft)">Заметки пока нет.</p>`}
+        <div class="row">
+          <button class="btn small ${wished ? "heart-on" : "outline-ink"}" id="wishBtn">${wished ? "♥ Хочу поехать" : "♡ Хочу поехать"}</button>
+          <button class="btn small outline-ink" id="editBtn">✏️ Изменить</button>
+          <button class="btn small outline-ink" id="delBtn">🗑 Удалить</button>
+          <a class="btn small outline-ink" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}">На Google Maps</a>
+        </div>`;
+      $("#wishBtn", mpane).onclick = () => toggleWish(p.id);
+      $("#editBtn", mpane).onclick = () => { adding = { id: p.id }; placeForm(Object.assign({}, p), true); };
+      $("#delBtn", mpane).onclick = () => {
+        if (!confirm(`Удалить «${p.name}» с карты?`)) return;
+        state.custom = state.custom.filter((x) => x.id !== p.id);
+        state.wish = state.wish.filter((x) => x !== p.id);
+        save(); selected = null; toast("Место удалено"); mapPane();
+      };
+    }
+    function toggleWish(id) {
+      const i = state.wish.indexOf(id);
+      i >= 0 ? state.wish.splice(i, 1) : state.wish.push(id);
+      save(); sfx(i >= 0 ? "flip" : "ok");
+      const h = $(`.pin[data-id="${id}"] .heart`, mpane);
+      if (h) h.setAttribute("visibility", i >= 0 ? "hidden" : "visible");
+      select(id, true);
+    }
+
     function select(id, silent) {
+      const p = findPlace(id); if (!p) return emptyPanel();
       selected = id;
-      const p = PLACES.find((x) => x.id === id), c = CATS[p.cat];
       $$(".pin", mpane).forEach((g) => g.classList.toggle("sel", g.dataset.id === id));
       const pinEl = $(`.pin[data-id="${id}"]`, mpane);
       if (pinEl) pinEl.parentNode.append(pinEl); // поверх остальных
+      if (p.custom) return customPanel(p);
+      const c = CATS[p.cat];
       const fresh = !state.seen.includes(id);
       if (fresh) { state.seen.push(id); save(); if (!silent) sfx("flip"); }
       const wished = state.wish.includes(id);
@@ -857,18 +1105,11 @@
           <button class="btn small green" id="nextBtn">Следующее →</button>
           <a class="btn small outline-ink" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lon}">На Google Maps</a>
         </div>`;
-      $("#wishBtn", mpane).onclick = () => {
-        const i = state.wish.indexOf(id);
-        i >= 0 ? state.wish.splice(i, 1) : state.wish.push(id);
-        save(); sfx(i >= 0 ? "flip" : "ok");
-        const h = $(`.pin[data-id="${id}"] .heart`, mpane);
-        if (h) h.setAttribute("visibility", i >= 0 ? "hidden" : "visible");
-        select(id, true);
-      };
+      $("#wishBtn", mpane).onclick = () => toggleWish(id);
       $("#nextBtn", mpane).onclick = () => {
         const list = PLACES.filter(visible);
         const unseen = list.filter((x) => !state.seen.includes(x.id));
-        const pool = unseen.length ? unseen : list;
+        const pool = unseen.length ? unseen : list.length ? list : PLACES;
         const cur = pool.findIndex((x) => x.id === id);
         select(pool[(cur + 1) % pool.length].id);
       };
@@ -880,10 +1121,66 @@
       checkDone();
     }
     function checkDone() {
-      if (state.seen.length >= MAP_GOAL && !state.done[ch.id]) giveStamp(ch.id);
+      if (seenCount() >= MAP_GOAL && !state.done[ch.id]) giveStamp(ch.id);
       if (state.done[ch.id] && !$("#mapEnd .done-banner", s)) {
         $("#mapEnd", s).innerHTML = doneBanner("Картограф года! 🗺️", `Ты открыла ${MAP_GOAL}+ мест. Но карту можно изучать и дальше: здесь ещё много секретов.`, `<button class="btn ghost" data-go="ch/academy">В академию 🎓</button>`);
       }
+    }
+
+    /* --- окно выгрузки --- */
+    function openExport() {
+      stopAdding();
+      const mine = state.custom, wish = PLACES.filter((p) => state.wish.includes(p.id)), picks = PLACES.filter((p) => p.pick), rest = PLACES.filter((p) => !p.pick && !state.wish.includes(p.id));
+      const ov = el(`<div class="modal" role="dialog" aria-label="Скачать карту"><div class="modal-card">
+        <button class="lb-close" id="mClose" aria-label="Закрыть" style="color:var(--ink)">✕</button>
+        <h3>⬇ Скачать карту</h3>
+        <p style="color:var(--ink-soft);margin-top:0">На карте будут номера, а под ней — список мест с заметками.</p>
+        <label class="fld">Заголовок<input id="exTitle" maxlength="40" value="Моя Болгария"></label>
+        <div class="checks">
+          <label><input type="checkbox" data-g="mine" ${mine.length ? "checked" : "disabled"}> 📍 Мои места <b>${mine.length}</b></label>
+          <label><input type="checkbox" data-g="wish" ${wish.length ? "checked" : "disabled"}> ♥ Хочу поехать <b>${wish.length}</b></label>
+          <label><input type="checkbox" data-g="pick" checked> 📌 Отметки ${esc(GAME.fromGen || GAME.fromName)} <b>${picks.length}</b></label>
+          <label><input type="checkbox" data-g="rest"> 🗺️ Все остальные места <b>${rest.length}</b></label>
+        </div>
+        <div class="row" style="margin-top:16px">
+          <button class="btn small mine-btn" data-f="png">Картинка PNG</button>
+          <button class="btn small green" data-f="pdf">Документ PDF</button>
+        </div>
+        <p class="ex-status" id="exStatus"></p>
+        <p class="ex-hint">Если файл не скачивается (например, в браузере внутри Telegram), открой игру в обычном браузере — Chrome или Safari.</p>
+      </div></div>`);
+      document.body.append(ov);
+      const close = () => ov.remove();
+      onCleanup(close);
+      $("#mClose", ov).onclick = close;
+      ov.onclick = (e) => { if (e.target === ov) close(); };
+      $$("[data-f]", ov).forEach((b) => b.onclick = async () => {
+        const groups = { mine, wish, pick: picks, rest };
+        const seen = new Set(), items = [];
+        $$(".checks input:checked", ov).forEach((cb) => groups[cb.dataset.g].forEach((p) => { if (!seen.has(p.id)) { seen.add(p.id); items.push(p); } }));
+        if (!items.length) return toast("Выбери хотя бы один список");
+        const title = $("#exTitle", ov).value.trim() || "Моя Болгария", st = $("#exStatus", ov);
+        $$("[data-f]", ov).forEach((x) => (x.disabled = true));
+        st.textContent = "Рисую карту… 🎨";
+        try {
+          if (b.dataset.f === "png") {
+            const [c] = await exportCanvases(title, items, "png");
+            const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+            downloadBlob(blob, "karta-bolgarii.png");
+          } else {
+            if (!window.jspdf) { st.textContent = "Загружаю PDF-модуль…"; await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"); }
+            const pages = await exportCanvases(title, items, "pdf");
+            const pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+            pages.forEach((c, k) => { if (k) pdf.addPage(); pdf.addImage(c.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297); });
+            pdf.save("karta-bolgarii.pdf");
+          }
+          st.textContent = "Готово! Файл скачан ✨"; sfx("ok");
+        } catch (err) {
+          console.error(err);
+          st.textContent = "Не получилось сохранить 😔 Попробуй открыть игру в Chrome или Safari.";
+        }
+        $$("[data-f]", ov).forEach((x) => (x.disabled = false));
+      });
     }
 
     function drawnPane() {
@@ -891,10 +1188,14 @@
         <p class="drawn-note">Эту карту я нарисовала для тебя вместе с GPT ❤️ А на интерактивной — все места, куда стоит заглянуть.</p>`;
     }
     function wishPane() {
-      const list = PLACES.filter((p) => state.wish.includes(p.id));
-      mpane.innerHTML = list.length
-        ? `<div class="picks">${list.map((p) => `<div class="pick"><b>${CATS[p.cat].icon} ${esc(p.name)}</b><p>${esc(p.area)}</p><p style="margin-top:6px">${esc(p.text)}</p></div>`).join("")}</div>`
-        : `<div class="card" style="text-align:center"><div style="font-size:44px">♡</div><p>Пока пусто. Отмечай на карте сердечком места, куда хочешь поехать, — они соберутся здесь.</p></div>`;
+      const mine = state.custom, list = PLACES.filter((p) => state.wish.includes(p.id));
+      const card = (p) => `<div class="pick"><b>${p.custom ? "📍" : CATS[p.cat].icon} ${esc(p.name)}</b><p>${esc(p.custom ? "Моё место" : p.area)}</p><p style="margin-top:6px">${esc(p.custom ? p.note || "" : p.text)}</p></div>`;
+      mpane.innerHTML = (mine.length || list.length)
+        ? `${mine.length ? `<div class="section-title" style="margin-top:0">📍 Мои места</div><div class="picks">${mine.map(card).join("")}</div>` : ""}
+           ${list.length ? `<div class="section-title">♥ Хочу поехать</div><div class="picks">${list.map(card).join("")}</div>` : ""}
+           <div style="margin-top:20px"><button class="btn" id="expBtn2">⬇ Скачать карту</button></div>`
+        : `<div class="card" style="text-align:center"><div style="font-size:44px">♡</div><p>Пока пусто. Отмечай на карте сердечком места, куда хочешь поехать, и добавляй свои через «＋ Своё место» — они соберутся здесь.</p></div>`;
+      const b = $("#expBtn2", mpane); if (b) b.onclick = openExport;
     }
     tab("map");
     checkDone();
@@ -925,7 +1226,7 @@
     }
     function tab(t) {
       $$("#atabs .tab", s).forEach((b) => b.classList.toggle("on", b.dataset.t === t));
-      speechSynthesis && speechSynthesis.cancel && speechSynthesis.cancel();
+      try { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); } catch (e) {}
       ({ head: headPane, ff: ffPane, ph: phrasePane, facts: factsPane })[t]();
     }
     $$("#atabs .tab", s).forEach((b) => b.onclick = () => tab(b.dataset.t));
@@ -1082,16 +1383,16 @@
       $$(".say", apane).forEach((b) => b.onclick = () => say(PHRASES[+b.dataset.k].bg));
     }
     function say(text) {
-      if (!("speechSynthesis" in window)) return toast("Этот браузер не умеет говорить 😔");
+      if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return toast("Этот браузер не умеет говорить 😔 Прочитай по транскрипции!");
       const u = new SpeechSynthesisUtterance(text);
-      const voices = speechSynthesis.getVoices();
+      const voices = window.speechSynthesis.getVoices() || [];
       const v = voices.find((x) => /^bg/i.test(x.lang)) || voices.find((x) => /^(ru|uk|sr|mk)/i.test(x.lang));
       if (v) u.voice = v;
       u.lang = v ? v.lang : "bg-BG"; u.rate = .9;
       if (!voices.some((x) => /^bg/i.test(x.lang))) toast("Болгарского голоса нет — читаю как получится 😄", 1800);
       const wasPlaying = !music.paused; if (wasPlaying) music.volume = music.volume * .3;
       u.onend = () => applyVolume();
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      window.speechSynthesis.cancel(); window.speechSynthesis.speak(u);
     }
 
     function factsPane() {
@@ -1099,7 +1400,7 @@
         <div class="facts-grid">${BG_FACTS.map((f) => `<button class="fcard"><div class="in"><div class="face f1"><div class="e">${f.e}</div><b>${esc(f.t)}</b><small>нажми</small></div><div class="face f2">${esc(f.d)}</div></div></button>`).join("")}</div>`;
       $$(".fcard", apane).forEach((b) => b.onclick = () => { b.classList.toggle("open"); sfx("flip"); });
     }
-    onCleanup(() => { try { speechSynthesis.cancel(); } catch (e) {} });
+    onCleanup(() => { try { window.speechSynthesis.cancel(); } catch (e) {} });
     tab("head");
     marks();
   }
@@ -1230,7 +1531,7 @@
       return;
     }
     const picks = PLACES.filter((p) => p.pick);
-    const wishes = PLACES.filter((p) => state.wish.includes(p.id) && !p.pick);
+    const wishes = PLACES.filter((p) => state.wish.includes(p.id) && !p.pick).concat(state.custom || []);
     const s = mount(`<div class="finale">
       <div class="finale-back"><button class="back" data-go="hub">← К заданиям</button></div>
       <div class="final-hero">
@@ -1248,7 +1549,7 @@
       <div class="section-title">📌 Мои отметки для твоей карты на стене</div>
       <p style="color:var(--muted-night);margin:0">Места, которые я очень хочу, чтобы ты увидела. Проезжай по ним и вспоминай нас.</p>
       <div class="picks">${picks.map((p) => `<div class="pick"><b>${CATS[p.cat].icon} ${esc(p.name)}</b><p>${esc(p.tip)}</p></div>`).join("")}</div>
-      ${wishes.length ? `<div class="section-title">♥ А это ты отметила сама</div><div class="picks">${wishes.map((p) => `<div class="pick"><b>${CATS[p.cat].icon} ${esc(p.name)}</b><p>${esc(p.area)}</p></div>`).join("")}</div>` : ""}
+      ${wishes.length ? `<div class="section-title">♥ А это ты отметила сама</div><div class="picks">${wishes.map((p) => `<div class="pick"><b>${CATS[p.cat].icon} ${esc(p.name)}</b><p>${esc(p.custom ? p.note || "Моё место" : p.area)}</p></div>`).join("")}</div>` : ""}
       <div style="text-align:center;margin-top:34px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
         <button class="btn red" id="cheers">🥂 Наздраве!</button>
         <button class="btn ghost" id="toGallery">Ещё раз посмотреть мультик 🎞️</button>
